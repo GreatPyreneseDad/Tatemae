@@ -20,6 +20,11 @@ test('mandates narrow, never widen', async () => {
   await assert.rejects(P.issueMandate({ issuerPrivateJwk: net.privateJwk, issuerId: 'principal-1', holderPairId: 'b1', role: 'principal', scopePaths: ['src/'], parent: { ...parent, role: 'judge' } }), /widens role/);
   assert.equal(P.pathInScope('src/pager/x.js', ['src/pager/']), true);
   assert.equal(P.pathInScope('src/pagerx.js', ['src/pager']), false);
+  // root scope means the whole repository, in every spelling pick_made or a human might use
+  for (const root of ['./', '.', '', '/']) assert.equal(P.pathInScope('README.md', [root]), true, `root scope ${JSON.stringify(root)}`);
+  assert.equal(P.pathInScope('deep/x.js', ['./']), true);
+  // a root child cannot be issued under a narrower parent
+  await assert.rejects(P.issueMandate({ issuerPrivateJwk: net.privateJwk, issuerId: 'principal-1', holderPairId: 'b1', role: 'builder', scopePaths: ['./'], parent }), /widens scope/);
 });
 
 test('nonce round trip: mandate -> commit trailer + reasoning tag -> challenge-verified', async () => {

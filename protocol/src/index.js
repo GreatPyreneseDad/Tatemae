@@ -39,7 +39,7 @@ export async function verifyContribution({ token, publicJwk, payload }) {
 export async function issueMandate({ issuerPrivateJwk, issuerId, holderPairId, role, scopePaths, parent, expiresIn = '7d', nonce }) {
   if (!ROLES.includes(role)) throw new Error('unknown role');
   if (parent) {
-    if (!scopePaths.every(p => parent.scope_paths.some(pp => p === pp || p.startsWith(pp.replace(/\/?$/, '/'))))) throw new Error('mandate widens scope');
+    if (!scopePaths.every(p => pathInScope(normalizeScope(p), parent.scope_paths))) throw new Error('mandate widens scope');
     if (ROLE_RANK[role] > ROLE_RANK[parent.role]) throw new Error('mandate widens role');
   }
   const key = await importJWK(issuerPrivateJwk, ALG);
@@ -57,8 +57,12 @@ export async function verifyMandate({ token, issuerPublicJwk }) {
   if (protectedHeader.typ !== 'buildup-mandate+jwt') throw new Error('wrong typ');
   return payload;
 }
-export const pathInScope = (path, scopePaths) =>
-  scopePaths.some(pp => path === pp || path.startsWith(pp.replace(/\/?$/, '/')));
+// Scope rule, shared by mandate issuance, enforcement, and adapters. '.', './' and '' mean the whole repository.
+export const normalizeScope = (p) => { const s = String(p).replace(/^\.\/+/, '').replace(/^\/+/, ''); return s === '.' || s === '' ? '' : s; };
+export const pathInScope = (path, scopePaths) => scopePaths.some(pp => {
+  const s = normalizeScope(pp); if (s === '') return true;
+  return path === s || path.startsWith(s.replace(/\/?$/, '/'));
+});
 
 // ---- nonce binding. Proves one continuous agent session from mandate to submission.
 // Claims NOTHING about which model ran. Label: "challenge-verified". Never "proven".
