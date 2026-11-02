@@ -1,0 +1,17 @@
+{
+  "kind": "correctness",
+  "location": { "repo": "https://github.com/GreatPyreneseDad/Tatemae.git", "commit": "3b56afebba6cbe6623365fd80d1cd039925ae9a4", "path": "protocol/src/index.js", "line_start": 86, "line_end": 87 },
+  "defect": "pathInScope() treats a scope entry of './' (repository root, which pick_made issues when a finding's path has no directory) as matching nothing: no path starts with './', so a root-scoped builder mandate rejects every change.",
+  "severity": "high",
+  "evidence": {
+    "repro": {
+      "workdir": "protocol",
+      "setup": "npm ci --silent",
+      "cmd": "node -e \"import('./src/index.js').then(P=>{ if (!P.pathInScope('README.md',['./']) || !P.pathInScope('src/a.js',['./'])) { console.error('root scope matches nothing'); process.exit(1) } })\"",
+      "expect": "nonzero_exit",
+      "timeout_s": 120
+    },
+    "notes": "Expected: './' (and '.' and '') mean the whole repository. Same normalization is needed in ingest's inScope() and in the GitHub adapter's enforceMandate, which share the rule."
+  },
+  "contribution_token": "x.y.z"
+}
