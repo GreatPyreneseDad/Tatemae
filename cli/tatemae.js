@@ -5,10 +5,11 @@
 //   tatemae tag <nonce> <sha>  first line of a PR reasoning note: HMAC-SHA256(nonce, head_sha)
 //   tatemae file <finding.json> sign the finding with this pair's key and submit it as finding_filed
 //   tatemae board               list open findings and bounties (unjudged) from the picks API
+//   tatemae take <finding-id>   sign a pick, receive the sealed builder mandate, print its trailers
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { createHmac, createHash, generateKeyPairSync, createPrivateKey, createSign, randomBytes } from 'node:crypto';
+import { createHmac, createHash, generateKeyPairSync, createPrivateKey, createPublicKey, createSign, randomBytes, diffieHellman, createDecipheriv } from 'node:crypto';
 // no dependencies: a scaffold that must run in a clean clone
 
 export const HOME = process.env.TATEMAE_HOME ?? join(homedir(), '.tatemae');
@@ -26,6 +27,22 @@ export function signJws({ privateJwk, header, claims }) {
   const sig = createSign('SHA256').update(`${h}.${p}`).sign({ key: createPrivateKey({ key: privateJwk, format: 'jwk' }), dsaEncoding: 'ieee-p1363' });
   return `${h}.${p}.${b64u(sig)}`;
 }
+// ECDH-ES (direct key agreement) + A256GCM compact JWE decryption, RFC 7518 §4.6 Concat KDF. Enough to open an
+// envelope sealed to this pair's P-256 key; nothing more.
+export function openEnvelope(privateJwk, compact) {
+  const [h, , iv, ct, tag] = compact.split('.'); const hdr = JSON.parse(Buffer.from(h, 'base64url'));
+  if (hdr.alg !== 'ECDH-ES' || hdr.enc !== 'A256GCM') throw new Error(`unsupported envelope ${hdr.alg}/${hdr.enc}`);
+  const z = diffieHellman({ privateKey: createPrivateKey({ key: privateJwk, format: 'jwk' }), publicKey: createPublicKey({ key: hdr.epk, format: 'jwk' }) });
+  const len = (s) => { const b = Buffer.from(s); const l = Buffer.alloc(4); l.writeUInt32BE(b.length); return Buffer.concat([l, b]); };
+  const apu = hdr.apu ? Buffer.from(hdr.apu, 'base64url') : Buffer.alloc(0), apv = hdr.apv ? Buffer.from(hdr.apv, 'base64url') : Buffer.alloc(0);
+  const lenB = (b) => { const l = Buffer.alloc(4); l.writeUInt32BE(b.length); return Buffer.concat([l, b]); };
+  const suppPub = Buffer.alloc(4); suppPub.writeUInt32BE(256);
+  const round = Buffer.alloc(4); round.writeUInt32BE(1);
+  const key = createHash('sha256').update(Buffer.concat([round, z, len('A256GCM'), lenB(apu), lenB(apv), suppPub])).digest();
+  const d = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64url')); d.setAAD(Buffer.from(h)); d.setAuthTag(Buffer.from(tag, 'base64url'));
+  return JSON.parse(Buffer.concat([d.update(Buffer.from(ct, 'base64url')), d.final()]).toString());
+}
+
 export async function post(body) {
   const r = await fetch(INGEST, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error ?? `${r.status}`); return j;
@@ -59,6 +76,15 @@ export const commands = {
     for (const x of open) console.log([x.id, (x.verified ?? 'unverified').padEnd(10), x.f.kind.padEnd(11), x.f.location.path, x.bounty?.title ?? x.f.defect.slice(0, 80)].join('  '));
     return 0;
   },
+  async take(id) {
+    if (!id) { console.error('usage: tatemae take <finding-id>'); return 2; }
+    const k = loadKeys(); const now = Math.floor(Date.now() / 1000);
+    const pick_token = signJws({ privateJwk: k.privateJwk, header: { typ: 'buildup-pick+jwt' }, claims: { finding_event_id: id, sub: k.pair_id, iat: now, exp: now + 600, jti: randomBytes(8).toString('hex') } });
+    const r = await post({ type: 'pick_made', pick_token });
+    const env = openEnvelope(k.privateJwk, r.sealed);
+    console.log(`Buildup-Mandate: ${env.jti}\nBuildup-Nonce: ${env.nonce}\n# expires ${env.expires_at}; reasoning tag: tatemae tag ${env.nonce} <head_sha>`);
+    return 0;
+  },
   tag(nonce, sha) {
     if (!nonce || !sha) { console.error('usage: tatemae tag <nonce> <head_sha>'); return 2; }
     console.log(createHmac('sha256', nonce).update(sha).digest('hex')); return 0;
@@ -73,7 +99,7 @@ export function loadKeys() {
   return JSON.parse(readFileSync(KEYS, 'utf8'));
 }
 
-const USAGE = 'usage: tatemae <init | tag <nonce> <head_sha> | file <finding.json> | board>';
+const USAGE = 'usage: tatemae <init | tag <nonce> <head_sha> | file <finding.json> | board | take <finding-id>>';
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [cmd, ...args] = process.argv.slice(2);
   if (!commands[cmd]) { console.error(USAGE); process.exit(2); }

@@ -35,3 +35,12 @@ test('board lists only unjudged rows', async () => {
   const { stdout: out } = await promisify(execFile)('node', [CLI, 'board'], { env: { ...process.env, TATEMAE_BOARD: `http://localhost:${srv.address().port}/` }, encoding: 'utf8' }); srv.close();
   assert.match(out, /open1.*Piece/); assert.doesNotMatch(out, /done1/);
 });
+
+test('openEnvelope decrypts an ECDH-ES/A256GCM JWE sealed by jose', { skip: !existsSync(new URL('../../protocol/node_modules/jose', import.meta.url)) && 'jose not installed in protocol/' }, async () => {
+  const { openEnvelope } = await import('../tatemae.js');
+  const { CompactEncrypt, importJWK } = await import('../../protocol/node_modules/jose/dist/node/esm/index.js');
+  const { generateKeyPairSync } = await import('node:crypto');
+  const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+  const sealed = await new CompactEncrypt(new TextEncoder().encode(JSON.stringify({ jti: 'm1', nonce: 'n1' }))).setProtectedHeader({ alg: 'ECDH-ES', enc: 'A256GCM', typ: 'buildup-envelope+jwe' }).encrypt(await importJWK(publicKey.export({ format: 'jwk' }), 'ECDH-ES'));
+  assert.deepEqual(openEnvelope(privateKey.export({ format: 'jwk' }), sealed), { jti: 'm1', nonce: 'n1' });
+});
