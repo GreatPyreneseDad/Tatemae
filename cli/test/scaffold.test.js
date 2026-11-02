@@ -26,3 +26,12 @@ test('file signs a finding with the pair key and posts finding_filed; the signat
   const { payload, protectedHeader } = await jwtVerify(token, await importJWK(publicKey.export({ format: 'jwk' }), 'ES256'), { algorithms: ['ES256'] });
   assert.equal(protectedHeader.typ, 'buildup-contribution+jwt'); assert.equal(payload.payload_sha256, sha256hex(canonical(finding)));
 });
+
+test('board lists only unjudged rows', async () => {
+  const http = await import('node:http');
+  const rows = [{ id: 'open1', verified: 'red', judged: false, f: { kind: 'bug', location: { path: 'a.js' }, defect: 'd' }, bounty: { title: 'Piece' } }, { id: 'done1', judged: true, f: { kind: 'bug', location: { path: 'x.js' }, defect: 'old' } }];
+  const srv = http.createServer((q, s) => { s.setHeader('content-type', 'application/json'); s.end(JSON.stringify(rows)); }); await new Promise(r => srv.listen(0, r));
+  const { execFile } = await import('node:child_process'); const { promisify } = await import('node:util');
+  const { stdout: out } = await promisify(execFile)('node', [CLI, 'board'], { env: { ...process.env, TATEMAE_BOARD: `http://localhost:${srv.address().port}/` }, encoding: 'utf8' }); srv.close();
+  assert.match(out, /open1.*Piece/); assert.doesNotMatch(out, /done1/);
+});

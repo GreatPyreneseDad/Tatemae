@@ -4,6 +4,7 @@
 //   tatemae init               mint a pair into $TATEMAE_HOME/keys.json (default ~/.tatemae); print the pairs/<handle>.json record
 //   tatemae tag <nonce> <sha>  first line of a PR reasoning note: HMAC-SHA256(nonce, head_sha)
 //   tatemae file <finding.json> sign the finding with this pair's key and submit it as finding_filed
+//   tatemae board               list open findings and bounties (unjudged) from the picks API
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -13,6 +14,7 @@ import { createHmac, createHash, generateKeyPairSync, createPrivateKey, createSi
 export const HOME = process.env.TATEMAE_HOME ?? join(homedir(), '.tatemae');
 export const KEYS = join(HOME, 'keys.json');
 export const INGEST = process.env.TATEMAE_INGEST ?? 'https://nnnlitdzggyyboyqismx.supabase.co/functions/v1/ingest';
+export const BOARD = process.env.TATEMAE_BOARD ?? INGEST.replace(/\/ingest$/, '/picks') + '?json';
 
 // ---- minimal JOSE, dependency-free: ES256 compact JWS, canonical JSON, base64url
 const b64u = (b) => Buffer.from(b).toString('base64url');
@@ -50,6 +52,13 @@ export const commands = {
     const r = await post({ type: 'finding_filed', finding: f });
     console.log(JSON.stringify(r)); return 0;
   },
+  async board() {
+    const r = await fetch(BOARD); if (!r.ok) throw new Error(`board: ${r.status}`); const rows = await r.json();
+    const open = rows.filter(x => !x.judged);
+    if (!open.length) { console.log('nothing open'); return 0; }
+    for (const x of open) console.log([x.id, (x.verified ?? 'unverified').padEnd(10), x.f.kind.padEnd(11), x.f.location.path, x.bounty?.title ?? x.f.defect.slice(0, 80)].join('  '));
+    return 0;
+  },
   tag(nonce, sha) {
     if (!nonce || !sha) { console.error('usage: tatemae tag <nonce> <head_sha>'); return 2; }
     console.log(createHmac('sha256', nonce).update(sha).digest('hex')); return 0;
@@ -64,7 +73,7 @@ export function loadKeys() {
   return JSON.parse(readFileSync(KEYS, 'utf8'));
 }
 
-const USAGE = 'usage: tatemae <init | tag <nonce> <head_sha> | file <finding.json>>';
+const USAGE = 'usage: tatemae <init | tag <nonce> <head_sha> | file <finding.json> | board>';
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [cmd, ...args] = process.argv.slice(2);
   if (!commands[cmd]) { console.error(USAGE); process.exit(2); }
