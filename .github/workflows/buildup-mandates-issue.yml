@@ -15,6 +15,7 @@ jobs:
       - env:
           INGEST_URL: ${{ vars.BUILDUP_INGEST_URL }}
           INGEST_SECRET: ${{ secrets.BUILDUP_INGEST_SECRET }}
+          BUILDUP_REPO_URL: ${{ vars.BUILDUP_REPO_URL }}
         run: |
           mkdir -p mandates/issued
           for f in mandates/*.request.json; do
@@ -22,7 +23,7 @@ jobs:
             [ -f "$OUT" ] && { echo "$RID: already issued"; continue; }
             BODY=$(jq -c '. + {type:"mandate_issue"}' "$f")
             SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$INGEST_SECRET" | awk '{print $NF}')
-            RESP=$(curl -sS -X POST "$INGEST_URL" -H "content-type: application/json" -H "x-buildup-signature: sha256=$SIG" -d "$BODY")
+            RESP=$(curl -sS -X POST "$INGEST_URL" -H "content-type: application/json" -H "x-buildup-signature: sha256=$SIG" -H "x-buildup-repo: ${BUILDUP_REPO_URL:-$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git}" -d "$BODY")
             echo "$RID: $(jq -c 'del(.sealed)' <<<"$RESP")"
             SEALED=$(jq -r '.sealed // empty' <<<"$RESP"); [ -n "$SEALED" ] && printf '%s\n' "$SEALED" > "$OUT"
           done

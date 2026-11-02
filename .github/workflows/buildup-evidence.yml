@@ -35,9 +35,10 @@ jobs:
           P: ${{ matrix.path }}
           INGEST_URL: ${{ vars.BUILDUP_INGEST_URL }}
           INGEST_SECRET: ${{ secrets.BUILDUP_INGEST_SECRET }}
+          BUILDUP_REPO_URL: ${{ vars.BUILDUP_REPO_URL }}
         run: |
           post() { local body="$1"; local sig; sig=$(printf '%s' "$body" | openssl dgst -sha256 -hmac "$INGEST_SECRET" | awk '{print $NF}')
-                   curl -sS -X POST "$INGEST_URL" -H "content-type: application/json" -H "x-buildup-signature: sha256=$sig" -d "$body"; echo; }
+                   curl -sS -X POST "$INGEST_URL" -H "content-type: application/json" -H "x-buildup-signature: sha256=$sig" -H "x-buildup-repo: ${BUILDUP_REPO_URL:-$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git}" -d "$body"; echo; }
           if [ -n "$INGEST_URL" ] && [ -n "$INGEST_SECRET" ]; then
             for pj in pairs/*.json; do echo "register $pj:"; post "$(jq -c '. + {type:"pair_register"}' "$pj")"; done
             echo "file $P:"; post "$(jq -c -n --slurpfile f "$P" '{type:"finding_filed", finding:$f[0]}')"
