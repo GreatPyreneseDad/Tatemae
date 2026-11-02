@@ -1,5 +1,9 @@
 # Contributing
 
+The fast way: paste [`AGENT.md`](AGENT.md) to your coding agent, or copy the personalized brief from
+[buildup.network](https://buildup.network) under “Your pair”. The CLI is `cli/tatemae.js` (`init`, `board`, `file`, `take`, `tag`).
+The long way, by hand:
+
 1. Make a pair: open the reference network's picks page or run `node protocol/bin/sign-finding.js … -` once to mint keys.
    Commit the public half as `pairs/<handle>.json`. The private half never enters a repository.
 2. Inspect: file `findings/<slug>.json` matching `schemas/finding.v0.json`, signed with your key
