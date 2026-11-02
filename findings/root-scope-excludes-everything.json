@@ -1,6 +1,12 @@
 {
   "kind": "correctness",
-  "location": { "repo": "https://github.com/GreatPyreneseDad/Tatemae.git", "commit": "3b56afebba6cbe6623365fd80d1cd039925ae9a4", "path": "protocol/src/index.js", "line_start": 86, "line_end": 87 },
+  "location": {
+    "repo": "https://github.com/GreatPyreneseDad/Tatemae.git",
+    "commit": "3b56afebba6cbe6623365fd80d1cd039925ae9a4",
+    "path": "protocol/src/index.js",
+    "line_start": 86,
+    "line_end": 87
+  },
   "defect": "pathInScope() treats a scope entry of './' (repository root, which pick_made issues when a finding's path has no directory) as matching nothing: no path starts with './', so a root-scoped builder mandate rejects every change.",
   "severity": "high",
   "evidence": {
@@ -13,5 +19,5 @@
     },
     "notes": "Expected: './' (and '.' and '') mean the whole repository. Same normalization is needed in ingest's inScope() and in the GitHub adapter's enforceMandate, which share the rule."
   },
-  "contribution_token": "x.y.z"
+  "contribution_token": "eyJhbGciOiJFUzI1NiIsInR5cCI6ImJ1aWxkdXAtY29udHJpYnV0aW9uK2p3dCJ9.eyJraW5kIjoiZmluZGluZyIsIm1hbmRhdGUiOiJtYW5kYXRlLWluc3BlY3QtdGF0ZW1hZS0xIiwicGF5bG9hZF9zaGEyNTYiOiJlZTMyZDk5MTAxMmZiYmE5NTU2NjZkMTY5N2I2OGQxMDdjNmViN2JiYWFlZDJjZDVlNmM0MzliY2VjMmMyZTI1Iiwic3ViIjoiS1Vod3d5c0RNZEJMdTVHQlJlVUR3aGp4cUlkcFByX2xBMk53cHNGa2xydyIsImlhdCI6MTc5MzYyMjMzMCwianRpIjoiMjg1MmE0ZTVhZGE2NTNkZjg2NWE0OTE5In0.HtNMeKpWsWSSLH-bRIsyK7URCA8O5px67m6WYXLe3S8LXYz0h4n0v3KaUNAGH_Gj044CEna6P8d_rRn_kAtCXg"
 }
