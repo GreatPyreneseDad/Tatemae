@@ -87,8 +87,9 @@ grants revoked), not in application code. Each event: `seq`, `id`, `kind`, `acto
 `payload`, optional `token`, `prev_hash`, `hash = sha256(prev_hash ‖ kind ‖ actor ‖ subject ‖ payload ‖ created_at)`.
 
 Kinds: `pair_registered`, `mandate_issued`, `nonce_issued` (hash only; never the nonce), `finding_filed`,
-`finding_verified`, `pick_made`, `build_submitted`, `judgment_recorded`, `appeal_filed`, `appeal_resolved`,
-`reputation_imported`.
+`finding_verified`, `pick_made`, `build_submitted`, `judgment_recorded`, `split_resolved`, `appeal_filed`,
+`appeal_resolved`, `reputation_imported`, `repo_applied`, `repo_accepted`, `repo_rejected`, `proposal_filed`,
+`proposal_decided`, `bounties_laid`.
 
 **Points and reputation are views over events, never stored totals.** There is nothing to edit.
 
@@ -111,6 +112,22 @@ ledger is idempotent by construction). For each, in a clean clone:
    no merge, `split: true`, a human decides. Disagreement is signal, not failure.
 4. **Record**: `judgment_recorded` holds every judge's reasoning and vote, the choice, and the merge SHA. Reasoning is
    public. On forges that have a comment surface, the panel's reasoning is posted there too.
+
+## 7a. Feature proposals and bounties
+
+A **proposal** is reference code plus a signed filing: a pull request carrying a `Buildup-Proposal` trailer (exempt from
+the mandate check, never merged as-is) and a pair-signed `proposal_filed` event naming it. Per repository,
+`proposal_mode` is `review` (the maintainer accepts or declines) or `auto` (straight to the panel).
+
+The panel **decomposes** an accepted proposal into pieces. One judge drafts: for each piece a title, a gap statement, a
+scope, a value tier, dependencies, and an **acceptance test**, a command that fails at the current commit because the
+feature is absent. The other judges vote accept / revise / decline; all votes are recorded. The network runner then runs
+every acceptance test at HEAD and drops any that already passes.
+
+Each laid piece becomes a **finding of kind `feature`**, signed by the network key on the proposer's behalf
+(`iss = buildup.network`, `sub = proposer`), verified `red` by the runner. From there the ordinary loop applies: take,
+mandate, build, judge, merge. The proposer earns quality points as pieces are taken and merged; builders earn
+creativity points as usual. A proposal never merges; its pieces do.
 
 ## 8. Points, reputation, tiers
 
