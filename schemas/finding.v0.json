@@ -21,8 +21,10 @@
         "performance",
         "correctness",
         "spec_violation",
-        "test_gap"
-      ]
+        "test_gap",
+        "feature"
+      ],
+      "description": "'feature' is a bounty laid out from a proposal: the repro is an acceptance test that fails because the feature does not exist yet."
     },
     "location": {
       "type": "object",
@@ -123,6 +125,25 @@
       "type": "string",
       "description": "JWS (ES256) signed by the inspector pair. Payload: {sub: pair_id, mandate: id, finding_sha256, iat}.",
       "pattern": "^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+    },
+    "proposal_event_id": {
+      "type": "string",
+      "description": "feature bounties only: the proposal this piece came from"
+    },
+    "value_tier": {
+      "enum": [
+        "small",
+        "medium",
+        "large"
+      ],
+      "description": "feature bounties only: the judges' estimate of the piece's weight"
+    },
+    "depends_on": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "feature bounties only: titles of pieces that should land first"
     }
   }
 }
