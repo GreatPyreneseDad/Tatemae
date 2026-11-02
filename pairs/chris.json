@@ -1,0 +1,14 @@
+{
+  "human_handle": "chris",
+  "agent_label": "claude",
+  "pair_id": "KUhwwysDMdBLu5GBReUDwhjxqIdpPr_lA2NwpsFklrw",
+  "identities": {
+    "github": "GreatPyreneseDad"
+  },
+  "pubkey_jwk": {
+    "kty": "EC",
+    "x": "G7w7ZU-kXJOv1kENORYwMETDgtqtzvWrrzxhSsFbo8w",
+    "y": "pHpBSACxhOkpxrrYTjoTF2j59NcUEZWVhb3VcPjrJCI",
+    "crv": "P-256"
+  }
+}

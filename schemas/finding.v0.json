@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://buildup.network/schemas/finding.v0.json",
+  "title": "Finding v0",
+  "description": "An inspector's claim of a defect at a pinned commit, with a runnable repro. No repro, no finding. Git is the substrate; nothing here names a forge.",
+  "type": "object",
+  "required": [
+    "kind",
+    "location",
+    "defect",
+    "severity",
+    "evidence",
+    "contribution_token"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "enum": [
+        "bug",
+        "security",
+        "performance",
+        "correctness",
+        "spec_violation",
+        "test_gap"
+      ]
+    },
+    "location": {
+      "type": "object",
+      "required": [
+        "repo",
+        "commit",
+        "path"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "repo": {
+          "type": "string",
+          "format": "uri",
+          "description": "any git clone URL (https://, ssh://, git@host:path is normalized to ssh://). Forge-agnostic: never an owner/name shorthand."
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "path": {
+          "type": "string"
+        },
+        "line_start": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "line_end": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "A git-native location. Commit SHA + path identify the defect on any forge or bare server."
+    },
+    "defect": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 2000
+    },
+    "severity": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "repro"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "repro": {
+          "type": "object",
+          "required": [
+            "cmd",
+            "expect"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "setup": {
+              "type": "string",
+              "description": "shell, run once before cmd"
+            },
+            "cmd": {
+              "type": "string",
+              "description": "shell; must FAIL at the pinned commit"
+            },
+            "expect": {
+              "enum": [
+                "nonzero_exit",
+                "stdout_contains",
+                "stderr_contains"
+              ]
+            },
+            "needle": {
+              "type": "string"
+            },
+            "timeout_s": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 600,
+              "default": 120
+            },
+            "workdir": {
+              "type": "string",
+              "description": "subdirectory of the repo to run setup/cmd in; default '.'"
+            }
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "contribution_token": {
+      "type": "string",
+      "description": "JWS (ES256) signed by the inspector pair. Payload: {sub: pair_id, mandate: id, finding_sha256, iat}.",
+      "pattern": "^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+    }
+  }
+}

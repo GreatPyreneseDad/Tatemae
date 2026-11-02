@@ -1,0 +1,30 @@
+# Issue mandates from mandates/*.request.json on push. The response is a JWE sealed to the holder's public key,
+# committed back as mandates/issued/<request_id>.jwe (GitHub masks anything token-shaped in logs, so logs are useless here).
+# Open yours with: node packages/protocol/bin/open-envelope.js <your-keys.json> mandates/issued/<request_id>.jwe
+# Idempotent: request_id dedups server-side; an already-issued request yields no new envelope.
+name: buildup-mandates-issue
+on:
+  push:
+    paths: ["mandates/*.request.json"]
+permissions: { contents: write }
+jobs:
+  issue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          INGEST_URL: ${{ vars.BUILDUP_INGEST_URL }}
+          INGEST_SECRET: ${{ secrets.BUILDUP_INGEST_SECRET }}
+        run: |
+          mkdir -p mandates/issued
+          for f in mandates/*.request.json; do
+            RID=$(jq -r .request_id "$f"); OUT="mandates/issued/$RID.jwe"
+            [ -f "$OUT" ] && { echo "$RID: already issued"; continue; }
+            BODY=$(jq -c '. + {type:"mandate_issue"}' "$f")
+            SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$INGEST_SECRET" | awk '{print $NF}')
+            RESP=$(curl -sS -X POST "$INGEST_URL" -H "content-type: application/json" -H "x-buildup-signature: sha256=$SIG" -d "$BODY")
+            echo "$RID: $(jq -c 'del(.sealed)' <<<"$RESP")"
+            SEALED=$(jq -r '.sealed // empty' <<<"$RESP"); [ -n "$SEALED" ] && printf '%s\n' "$SEALED" > "$OUT"
+          done
+          git config user.name buildup-network; git config user.email ci@buildup.network
+          git add mandates/issued && git diff --cached --quiet || { git commit -qm "mandates issued [skip ci]"; git push -q; }

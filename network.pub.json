@@ -1,0 +1,10 @@
+{
+  "issuer": "buildup.network",
+  "kid": "s2dRCQL0DFS1Eon02cPGFLqN6x_IxmjdEMuhz1dCigQ",
+  "pubkey_jwk": {
+    "kty": "EC",
+    "x": "RIXNb3nJbH6b6YoblteYDlGWN7bxL44AHcV2X_6OCFI",
+    "y": "VNIQ-LQeaoqNCxi6ei8Kwvw8RliUetSmhE710IwGKuA",
+    "crv": "P-256"
+  }
+}

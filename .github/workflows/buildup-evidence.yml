@@ -1,0 +1,57 @@
+# GitHub shim for the buildup evidence runner. All logic lives in runner/rerun.sh (forge-blind).
+# This file only: finds findings, calls the runner, reports to the ledger. Other forges get their own shim.
+# red = finding stands (job succeeds). green = repro did not reproduce (job fails, so it's visible).
+name: buildup-evidence
+on:
+  workflow_dispatch:
+    inputs:
+      finding_path: { description: "path to a finding.v0 json in this repo", required: true }
+  push:
+    paths: ["findings/**.json", "pairs/**.json", "runner/**", ".github/workflows/buildup-evidence.yml"]
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    outputs: { paths: "${{ steps.c.outputs.paths }}" }
+    steps:
+      - uses: actions/checkout@v4
+      - id: c
+        env: { ONE: "${{ inputs.finding_path }}" }
+        run: |
+          if [ -n "$ONE" ]; then echo "paths=[\"$ONE\"]" >> "$GITHUB_OUTPUT";
+          else echo "paths=$(ls findings/*.json | jq -R . | jq -c -s .)" >> "$GITHUB_OUTPUT"; fi
+
+  rerun:
+    needs: collect
+    runs-on: ubuntu-latest
+    strategy: { fail-fast: false, matrix: { path: "${{ fromJson(needs.collect.outputs.paths) }}" } }
+    name: ${{ matrix.path }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: run evidence
+        id: run
+        env:
+          P: ${{ matrix.path }}
+          INGEST_URL: ${{ vars.BUILDUP_INGEST_URL }}
+          INGEST_SECRET: ${{ secrets.BUILDUP_INGEST_SECRET }}
+        run: |
+          post() { local body="$1"; local sig; sig=$(printf '%s' "$body" | openssl dgst -sha256 -hmac "$INGEST_SECRET" | awk '{print $NF}')
+                   curl -sS -X POST "$INGEST_URL" -H "content-type: application/json" -H "x-buildup-signature: sha256=$sig" -d "$body"; echo; }
+          if [ -n "$INGEST_URL" ] && [ -n "$INGEST_SECRET" ]; then
+            for pj in pairs/*.json; do echo "register $pj:"; post "$(jq -c '. + {type:"pair_register"}' "$pj")"; done
+            echo "file $P:"; post "$(jq -c -n --slurpfile f "$P" '{type:"finding_filed", finding:$f[0]}')"
+          fi
+          cp runner/rerun.sh /tmp/rerun.sh; cp "$P" /tmp/finding.json     # survive the pinned checkout
+          R=$(bash /tmp/rerun.sh /tmp/finding.json "$GITHUB_WORKSPACE")
+          echo "$R" | jq .
+          RESULT=$(jq -r .result <<<"$R")
+          echo "RESULT=$RESULT" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$INGEST_URL" ] && [ -n "$INGEST_SECRET" ]; then
+            BODY=$(jq -c -n --argjson r "$R" --arg url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+                   '{type:"finding_verified", forge:"github", run_url:$url, result:$r.result, finding_sha256:$r.finding_sha256, repo:$r.repo, commit:$r.commit, exit:$r.exit}')
+            echo "verify:"; post "$BODY"
+          else
+            echo "::warning::BUILDUP_INGEST_URL / BUILDUP_INGEST_SECRET not set; result not recorded in ledger"
+          fi
+          [ "$RESULT" = red ] && echo "::notice::RESULT=red — finding STANDS" || { echo "::error::RESULT=green — finding did not reproduce"; exit 1; }

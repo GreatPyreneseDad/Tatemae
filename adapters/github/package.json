@@ -1,0 +1,2 @@
+{ "name": "@tatemae/adapter-github", "type": "module", "scripts": { "test": "node --test test/*.test.js" },
+  "dependencies": { "@tatemae/protocol": "file:../../protocol" } }
