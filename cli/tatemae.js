@@ -6,9 +6,11 @@
 //   tatemae file <finding.json> sign the finding with this pair's key and submit it as finding_filed
 //   tatemae board [--json]      list open findings and bounties (unjudged) from the picks API (or a JSON array for agents)
 //   tatemae take <finding-id> [--json]  sign a pick, receive the sealed builder mandate, print its trailers (or JSON for agents)
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join, dirname } from 'node:path';
+//   tatemae verify <finding.json>  clone the repo at the pinned commit, run the repro, print result JSON; exit 0 if red, 1 if green
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
+import { join, dirname, resolve, relative, isAbsolute } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { createHmac, createHash, generateKeyPairSync, createPrivateKey, createPublicKey, createSign, randomBytes, diffieHellman, createDecipheriv } from 'node:crypto';
 // no dependencies: a scaffold that must run in a clean clone
 
@@ -91,6 +93,32 @@ export const commands = {
     console.log(`Buildup-Mandate: ${env.jti}\nBuildup-Nonce: ${env.nonce}\n# expires ${env.expires_at}; reasoning tag: tatemae tag ${env.nonce} <head_sha>`);
     return 0;
   },
+  // Local mirror of runner/rerun.sh: red (repro reproduces, finding stands) exits 0; green exits 1; errors exit 2.
+  async verify(path) {
+    if (!path) { console.error('usage: tatemae verify <finding.json>'); return 2; }
+    let dir;
+    try {
+      const f = JSON.parse(readFileSync(path, 'utf8'));
+      const { repo, commit } = f.location, rp = f.evidence.repro;
+      if (!['nonzero_exit', 'stdout_contains', 'stderr_contains'].includes(rp.expect)) throw new Error(`unsupported expect: ${rp.expect}`);
+      const git = (args, cwd) => { const r = spawnSync('git', args, { cwd, encoding: 'utf8' }); if (r.status !== 0) throw new Error(`git ${args[0]}: ${(r.stderr || r.error?.message || '').trim()}`); };
+      dir = mkdtempSync(join(tmpdir(), 'tatemae-verify-'));
+      git(['clone', '-q', repo, dir]);
+      if (spawnSync('git', ['checkout', '-q', commit], { cwd: dir }).status !== 0) { git(['fetch', '-q', 'origin', commit], dir); git(['checkout', '-q', commit], dir); }
+      const wd = resolve(dir, rp.workdir ?? '.'), rel = relative(dir, wd);
+      if (rel.startsWith('..') || isAbsolute(rel)) throw new Error(`workdir escapes the repository: ${rp.workdir}`);
+      const sh = (cmd) => spawnSync('bash', ['-c', cmd], { cwd: wd, encoding: 'utf8', timeout: (rp.timeout_s ?? 120) * 1000, maxBuffer: 1 << 24 });
+      if (rp.setup) sh(rp.setup);   // like the runner, a failing setup is not fatal; the repro decides
+      const r = sh(rp.cmd);
+      const rc = r.error?.code === 'ETIMEDOUT' ? 124 : (r.status ?? 1), out = r.stdout ?? '', err = r.stderr ?? '';
+      const reproduced = rp.expect === 'nonzero_exit' ? rc !== 0 : (rp.expect === 'stdout_contains' ? out : err).includes(rp.needle ?? '');
+      const { contribution_token, ...bare } = f;
+      console.log(JSON.stringify({ result: reproduced ? 'red' : 'green', repo, commit, finding_sha256: sha256hex(canonical(bare)), exit: rc, stdout_tail: out.slice(-2000), stderr_tail: err.slice(-2000) }));
+      return reproduced ? 0 : 1;
+    } catch (e) {
+      console.error(`verify: ${e.message}`); return 2;
+    } finally { if (dir) rmSync(dir, { recursive: true, force: true }); }
+  },
   tag(nonce, sha) {
     if (!nonce || !sha) { console.error('usage: tatemae tag <nonce> <head_sha>'); return 2; }
     console.log(createHmac('sha256', nonce).update(sha).digest('hex')); return 0;
@@ -105,7 +133,7 @@ export function loadKeys() {
   return JSON.parse(readFileSync(KEYS, 'utf8'));
 }
 
-const USAGE = 'usage: tatemae <init | tag <nonce> <head_sha> | file <finding.json> | board [--json] | take <finding-id> [--json]>';
+const USAGE = 'usage: tatemae <init | tag <nonce> <head_sha> | file <finding.json> | board [--json] | take <finding-id> [--json] | verify <finding.json>>';
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [cmd, ...args] = process.argv.slice(2);
   if (!commands[cmd]) { console.error(USAGE); process.exit(2); }
