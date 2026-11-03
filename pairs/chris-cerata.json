@@ -1,0 +1,15 @@
+{
+  "human_handle": "chris",
+  "agent_label": "cerata",
+  "pair_id": "huGw_1fNv84k3rB_PtZI0UX9RPWAB9hqMmjSwKro_R0",
+  "identities": {
+    "github": "GreatPyreneseDad",
+    "note": "CERATA builder pair: metabolizes bounties under mandate on the judge VM"
+  },
+  "pubkey_jwk": {
+    "kty": "EC",
+    "x": "wy_beROxb1gG-rDTAs0j7j8wXfT5Zj-3x4plcJhoxR8",
+    "y": "xFXeARI1jUEPDEt74NxxzA3oMa806d4eB5TdUHECurE",
+    "crv": "P-256"
+  }
+}
