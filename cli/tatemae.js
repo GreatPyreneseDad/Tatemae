@@ -5,7 +5,7 @@
 //   tatemae tag <nonce> <sha>  first line of a PR reasoning note: HMAC-SHA256(nonce, head_sha)
 //   tatemae file <finding.json> sign the finding with this pair's key and submit it as finding_filed
 //   tatemae board               list open findings and bounties (unjudged) from the picks API
-//   tatemae take <finding-id>   sign a pick, receive the sealed builder mandate, print its trailers
+//   tatemae take <finding-id> [--json]  sign a pick, receive the sealed builder mandate, print its trailers (or JSON for agents)
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -76,12 +76,17 @@ export const commands = {
     for (const x of open) console.log([x.id, (x.verified ?? 'unverified').padEnd(10), x.f.kind.padEnd(11), x.f.location.path, x.bounty?.title ?? x.f.defect.slice(0, 80)].join('  '));
     return 0;
   },
-  async take(id) {
-    if (!id) { console.error('usage: tatemae take <finding-id>'); return 2; }
+  async take(id, flag) {
+    if (!id) { console.error('usage: tatemae take <finding-id> [--json]'); return 2; }
     const k = loadKeys(); const now = Math.floor(Date.now() / 1000);
     const pick_token = signJws({ privateJwk: k.privateJwk, header: { typ: 'buildup-pick+jwt' }, claims: { finding_event_id: id, sub: k.pair_id, iat: now, exp: now + 600, jti: randomBytes(8).toString('hex') } });
     const r = await post({ type: 'pick_made', pick_token });
     const env = openEnvelope(k.privateJwk, r.sealed);
+    if (flag === '--json') {   // for agents: everything the mandate says, decoded from its token
+      const m = JSON.parse(Buffer.from(env.token.split('.')[1], 'base64url'));
+      console.log(JSON.stringify({ jti: env.jti, nonce: env.nonce, expires_at: env.expires_at, repo: m.repo, scope_paths: m.scope_paths, role: m.role, pair_id: k.pair_id, token: env.token }));
+      return 0;
+    }
     console.log(`Buildup-Mandate: ${env.jti}\nBuildup-Nonce: ${env.nonce}\n# expires ${env.expires_at}; reasoning tag: tatemae tag ${env.nonce} <head_sha>`);
     return 0;
   },
