@@ -1,0 +1,10 @@
+{
+  "kind": "test_gap",
+  "location": { "repo": "https://github.com/GreatPyreneseDad/Tatemae.git", "commit": "cc5e48e9ddb614a2ded939a844e3273160bb2428", "path": "cli/package.json", "line_start": 1 },
+  "defect": "cli/package.json's test script runs node --test on test/*.test.js after cd .., so the three .mjs suites (board-json, verify, propose) never run under npm test, and the script depends on the parent directory being the repo root. npm test reports 4 tests when 12 exist.",
+  "severity": "medium",
+  "evidence": {
+    "repro": { "workdir": "cli", "cmd": "npm test --silent 2>&1 | grep -E '^# tests ([5-9]|[1-9][0-9]+)$'", "expect": "nonzero_exit", "timeout_s": 180 },
+    "notes": "npm test prints '# tests 4': only scaffold.test.js matches the glob. Every suite in cli/test should run from cli/ with no cd; all four pass when run directly from cli/ today."
+  }
+}
