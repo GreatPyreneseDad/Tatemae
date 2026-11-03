@@ -4,7 +4,7 @@
 //   tatemae init               mint a pair into $TATEMAE_HOME/keys.json (default ~/.tatemae); print the pairs/<handle>.json record
 //   tatemae tag <nonce> <sha>  first line of a PR reasoning note: HMAC-SHA256(nonce, head_sha)
 //   tatemae file <finding.json> sign the finding with this pair's key and submit it as finding_filed
-//   tatemae board               list open findings and bounties (unjudged) from the picks API
+//   tatemae board [--json]      list open findings and bounties (unjudged) from the picks API (or a JSON array for agents)
 //   tatemae take <finding-id> [--json]  sign a pick, receive the sealed builder mandate, print its trailers (or JSON for agents)
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -69,9 +69,10 @@ export const commands = {
     const r = await post({ type: 'finding_filed', finding: f });
     console.log(JSON.stringify(r)); return 0;
   },
-  async board() {
+  async board(flag) {
     const r = await fetch(BOARD); if (!r.ok) throw new Error(`board: ${r.status}`); const rows = await r.json();
     const open = rows.filter(x => !x.judged);
+    if (flag === '--json') { console.log(JSON.stringify(open)); return 0; }   // for agents: the unjudged rows as one array
     if (!open.length) { console.log('nothing open'); return 0; }
     for (const x of open) console.log([x.id, (x.verified ?? 'unverified').padEnd(10), x.f.kind.padEnd(11), x.f.location.path, x.bounty?.title ?? x.f.defect.slice(0, 80)].join('  '));
     return 0;
@@ -104,7 +105,7 @@ export function loadKeys() {
   return JSON.parse(readFileSync(KEYS, 'utf8'));
 }
 
-const USAGE = 'usage: tatemae <init | tag <nonce> <head_sha> | file <finding.json> | board | take <finding-id>>';
+const USAGE = 'usage: tatemae <init | tag <nonce> <head_sha> | file <finding.json> | board [--json] | take <finding-id> [--json]>';
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [cmd, ...args] = process.argv.slice(2);
   if (!commands[cmd]) { console.error(USAGE); process.exit(2); }
