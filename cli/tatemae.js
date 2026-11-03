@@ -7,6 +7,7 @@
 //   tatemae board [--json]      list open findings and bounties (unjudged) from the picks API (or a JSON array for agents)
 //   tatemae take <finding-id> [--json] [--renew]  sign a pick (--renew: new mandate for a pick already held), receive the sealed builder mandate, print its trailers (or JSON for agents)
 //   tatemae verify <finding.json>  clone the repo at the pinned commit, run the repro, print result JSON; exit 0 if red, 1 if green
+//   tatemae propose <pr-url> --title <title>  sign a proposal for a pull request with this pair's key and submit it as proposal_filed
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, dirname, resolve, relative, isAbsolute } from 'node:path';
@@ -120,6 +121,18 @@ export const commands = {
       console.error(`verify: ${e.message}`); return 2;
     } finally { if (dir) rmSync(dir, { recursive: true, force: true }); }
   },
+  // File a proposal: the pair signs which pull request it proposes (reference code, never merged as-is) and a title.
+  async propose(url, ...flags) {
+    const usage = 'usage: tatemae propose <pr-url> --title <title>';
+    const m = /^(https?:\/\/[^/]+\/[^/]+\/[^/]+)\/pull\/\d+\/?$/.exec(url ?? '');
+    const i = flags.indexOf('--title'), title = i >= 0 ? flags[i + 1] : undefined;
+    if (!m || !title) { console.error(usage); return 2; }
+    const k = loadKeys(); const now = Math.floor(Date.now() / 1000);
+    const proposal_token = signJws({ privateJwk: k.privateJwk, header: { typ: 'buildup-proposal+jwt' },
+      claims: { title, repo_url: `${m[1].replace(/\.git$/, '')}.git`, pr_url: url, sub: k.pair_id ?? thumbprint(k.publicJwk), iat: now, jti: randomBytes(12).toString('hex') } });
+    const r = await post({ type: 'proposal_filed', proposal_token });
+    console.log(JSON.stringify(r)); return 0;
+  },
   tag(nonce, sha) {
     if (!nonce || !sha) { console.error('usage: tatemae tag <nonce> <head_sha>'); return 2; }
     console.log(createHmac('sha256', nonce).update(sha).digest('hex')); return 0;
@@ -134,7 +147,7 @@ export function loadKeys() {
   return JSON.parse(readFileSync(KEYS, 'utf8'));
 }
 
-const USAGE = 'usage: tatemae <init | tag <nonce> <head_sha> | file <finding.json> | board [--json] | take <finding-id> [--json] | verify <finding.json>>';
+const USAGE = 'usage: tatemae <init | tag <nonce> <head_sha> | file <finding.json> | board [--json] | take <finding-id> [--json] | verify <finding.json> | propose <pr-url> --title <title>>';
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [cmd, ...args] = process.argv.slice(2);
   if (!commands[cmd]) { console.error(USAGE); process.exit(2); }

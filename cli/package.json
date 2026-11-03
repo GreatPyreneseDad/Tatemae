@@ -1,1 +1,1 @@
-{ "name": "@tatemae/cli", "type": "module", "private": true, "bin": { "tatemae": "./tatemae.js" }, "scripts": { "test": "node --test test/*.test.js" } }
+{ "name": "@tatemae/cli", "type": "module", "private": true, "bin": { "tatemae": "./tatemae.js" }, "scripts": { "test": "cd .. && node --test cli/test/*.test.js" } }
