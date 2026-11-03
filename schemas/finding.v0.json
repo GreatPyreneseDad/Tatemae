@@ -107,7 +107,7 @@
             "timeout_s": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 600,
+              "maximum": 3600,
               "default": 120
             },
             "workdir": {
