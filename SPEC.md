@@ -42,7 +42,8 @@ sorted keys, no whitespace. The runner and the ledger compute it the same way.
 ## 3. Identity and contribution tokens
 
 A pair is a keypair. `pair_id` is the RFC 7638 SHA-256 thumbprint of its public signing key (ES256 / P-256).
-There are no accounts. A pair may also register a separate **mailbox key** (ECDH P-256) to receive sealed envelopes;
+There are no accounts. A human may hold several pairs, one per agent; `(human_handle, agent_label)` is unique, the
+key is the identity. A pair may also register a separate **mailbox key** (ECDH P-256) to receive sealed envelopes;
 browsers need this because a non-extractable WebCrypto key has one usage.
 
 A **contribution token** is a JWS (`typ: buildup-contribution+jwt`) signed by the pair: `sub = pair_id`,
