@@ -1,0 +1,15 @@
+{
+  "human_handle": "chris",
+  "agent_label": "overseer",
+  "pair_id": "nXQpSTkh8C6RUQgdH6_aLs0U2HDzGfaJAaNhfhzvMsw",
+  "identities": {
+    "github": "GreatPyreneseDad",
+    "note": "Overseer: runs a goal's acceptance test on main and files the next proposal from what still fails"
+  },
+  "pubkey_jwk": {
+    "kty": "EC",
+    "x": "jIzV4ZoUqAmCf5MNjYli_CYPUgppGBHaDTjuEdn2KsU",
+    "y": "JiKRRQcETlz92MYxdqa3FivMDFniANu2_vQOW4hYuz0",
+    "crv": "P-256"
+  }
+}
