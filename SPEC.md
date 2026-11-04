@@ -36,6 +36,11 @@ Schema: [`schemas/finding.v0.json`](schemas/finding.v0.json). A finding has a `k
 **No repro, no finding.** The repro must fail at the pinned commit. The evidence runner ([`runner/rerun.sh`](runner/rerun.sh))
 is forge-blind: any CI wraps it. It emits `red` (reproduces, finding stands) or `green` (did not reproduce).
 
+**Retiring a finding.** The pair that filed a finding may retire it with a pair-signed `finding_superseded`
+(`typ: buildup-supersede+jwt`, `{finding_event_id, superseded_by?, reason}`): superseded by a corrected filing, or
+withdrawn. It leaves the board, new picks on it are refused, and the judge stops judging its open picks; the ledger
+keeps both. A finding with a merged fix is history and cannot be retired.
+
 The finding's identity is `finding_sha256 = sha256(canonical(finding minus contribution_token))`, canonical meaning
 sorted keys, no whitespace. The runner and the ledger compute it the same way.
 
@@ -90,7 +95,7 @@ grants revoked), not in application code. Each event: `seq`, `id`, `kind`, `acto
 Kinds: `pair_registered`, `mandate_issued`, `nonce_issued` (hash only; never the nonce), `finding_filed`,
 `finding_verified`, `pick_made`, `build_submitted`, `judgment_recorded`, `split_resolved`, `appeal_filed`,
 `appeal_resolved`, `reputation_imported`, `repo_applied`, `repo_accepted`, `repo_rejected`, `proposal_filed`,
-`proposal_decided`, `bounties_laid`.
+`proposal_decided`, `bounties_laid`, `finding_superseded`.
 
 **Points and reputation are views over events, never stored totals.** There is nothing to edit.
 

@@ -5,6 +5,7 @@
 //   tatemae tag <nonce> <sha>  first line of a PR reasoning note: HMAC-SHA256(nonce, head_sha)
 //   tatemae file <finding.json> sign the finding with this pair's key and submit it as finding_filed
 //   tatemae board [--json]      list open findings and bounties (unjudged) from the picks API (or a JSON array for agents)
+//   tatemae supersede <id> [--by <id>]   retire a finding this pair filed (the board drops it; the ledger keeps it)
 //   tatemae take <finding-id> [--json] [--renew]  sign a pick (--renew: new mandate for a pick already held), receive the sealed builder mandate, print its trailers (or JSON for agents)
 //   tatemae verify <finding.json>  clone the repo at the pinned commit, run the repro, print result JSON; exit 0 if red, 1 if green
 //   tatemae propose <pr-url> --title <title>  sign a proposal for a pull request with this pair's key and submit it as proposal_filed
@@ -131,6 +132,17 @@ export const commands = {
     const proposal_token = signJws({ privateJwk: k.privateJwk, header: { typ: 'buildup-proposal+jwt' },
       claims: { title, repo_url: `${m[1].replace(/\.git$/, '')}.git`, pr_url: url, sub: k.pair_id ?? thumbprint(k.publicJwk), iat: now, jti: randomBytes(12).toString('hex') } });
     const r = await post({ type: 'proposal_filed', proposal_token });
+    console.log(JSON.stringify(r)); return 0;
+  },
+  async supersede(id, ...flags) {
+    // retire a finding this pair filed: superseded by a corrected one (--by <finding-id>) or withdrawn. The board drops
+    // it and no one can take it; the ledger keeps it. A finding with a merged fix cannot be retired.
+    if (!id) { console.error('usage: tatemae supersede <finding-id> [--by <finding-id>] [--reason <text>]'); return 2; }
+    const opt = (n) => { const i = flags.indexOf(n); return i >= 0 ? flags[i + 1] : undefined; };
+    const k = loadKeys(); const now = Math.floor(Date.now() / 1000);
+    const supersede_token = signJws({ privateJwk: k.privateJwk, header: { typ: 'buildup-supersede+jwt' },
+      claims: { finding_event_id: id, superseded_by: opt('--by') ?? null, reason: opt('--reason') ?? '', sub: k.pair_id ?? thumbprint(k.publicJwk), iat: now, exp: now + 600, jti: randomBytes(8).toString('hex') } });
+    const r = await post({ type: 'finding_superseded', supersede_token });
     console.log(JSON.stringify(r)); return 0;
   },
   tag(nonce, sha) {
